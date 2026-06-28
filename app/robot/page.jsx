@@ -1,7 +1,7 @@
 "use client";
 
-import DesktopRobot from "@/components/DesktopRobot";
+import DeskopRobot from "@/components/DeskopRobot";
 
 export default function RobotPage() {
-  return <DesktopRobot />;
+  return <DeskopRobot />;
 }
