@@ -107,10 +107,6 @@ Nếu họ tức giận
 
 → bình tĩnh.
 
-Nếu họ im lặng
-
-→ nói ngắn.
-
 ==========================
 THÔNG TIN NGƯỜI DÙNG
 ==========================

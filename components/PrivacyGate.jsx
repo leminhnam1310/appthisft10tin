@@ -4,15 +4,18 @@ import { useEffect, useState } from "react";
 
 export default function PrivacyGate() {
   const [show, setShow] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
+
     const saved = localStorage.getItem("ai_consent");
     if (!saved) setShow(true);
   }, []);
 
   const accept = () => {
     localStorage.setItem("ai_consent", "true");
-    location.reload();
+    setShow(false);
   };
 
   const decline = () => {
@@ -20,30 +23,50 @@ export default function PrivacyGate() {
     setShow(false);
   };
 
-  if (!show) return null;
+  if (!mounted || !show) return null;
 
   return (
-    <div className="fixed inset-0 z-[999999] bg-black/60 flex items-center justify-center">
-      <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl w-[360px] text-center">
-        <h2 className="text-lg font-bold">🤖 Cho phép AI hoạt động?</h2>
+    <div className="fixed inset-0 z-[999999] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      
+      <div className="
+        w-[360px] rounded-2xl p-6 text-center shadow-2xl
+        bg-white text-slate-900
+        dark:bg-slate-900 dark:text-slate-100
+        transition-all
+      ">
+        
+        <h2 className="text-lg font-bold">
+          🤖 Cho phép AI hoạt động?
+        </h2>
 
-        <p className="text-sm opacity-70 mt-2 mb-4">
-          Robot sẽ theo dõi hành vi nhẹ để phản hồi thông minh hơn.
+        <p className="text-sm mt-2 mb-5 opacity-70">
+          Robot sẽ ghi nhớ hành vi nhẹ để phản hồi thông minh hơn.
         </p>
 
-        <button
-          onClick={accept}
-          className="bg-green-500 text-white px-4 py-2 rounded-lg mr-2"
-        >
-          Accept
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={accept}
+            className="
+              flex-1 py-2 rounded-lg font-medium
+              bg-green-500 hover:bg-green-600
+              text-white transition
+            "
+          >
+            Accept
+          </button>
 
-        <button
-          onClick={decline}
-          className="bg-red-500 text-white px-4 py-2 rounded-lg"
-        >
-          Decline
-        </button>
+          <button
+            onClick={decline}
+            className="
+              flex-1 py-2 rounded-lg font-medium
+              bg-red-500 hover:bg-red-600
+              text-white transition
+            "
+          >
+            Decline
+          </button>
+        </div>
+
       </div>
     </div>
   );
