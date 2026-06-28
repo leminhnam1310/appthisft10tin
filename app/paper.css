@@ -1,0 +1,85 @@
+.paper-game {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #eef6ff;
+}
+
+/* ================= WRITE ================= */
+
+.write-scene {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+/* ================= CHOOSE ================= */
+
+.choose-scene {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 30px;
+}
+
+.button-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 140px);
+  gap: 15px;
+}
+
+.button-grid button {
+  padding: 14px;
+  border-radius: 12px;
+  border: none;
+  background: white;
+  cursor: pointer;
+  font-weight: bold;
+  box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+}
+
+/* ================= PAPER ================= */
+
+.paper-sheet {
+  width: 420px;
+  height: 500px;
+  background: #fffdf5;
+  border-radius: 12px;
+  box-shadow: 0 30px 60px rgba(0,0,0,0.2);
+  padding: 20px;
+}
+
+.paper-input {
+  width: 100%;
+  height: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 18px;
+}
+
+/* ================= ANIMATION ================= */
+
+.anim-scene {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.paper-preview {
+  font-size: 18px;
+}
+
+/* ================= NEXT BUTTON ================= */
+
+.next-btn {
+  padding: 12px 18px;
+  border: none;
+  border-radius: 12px;
+  background: #111827;
+  color: white;
+  cursor: pointer;
+}
