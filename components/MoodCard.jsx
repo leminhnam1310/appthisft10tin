@@ -546,7 +546,7 @@ return (
     </div>
   </div>
 )}
-  <div className="w-full bg-white dark:bg-slate-900 rounded-3xl p-5 shadow-lg">
+  <div className="w-full max-w-md mx-auto bg-white dark:bg-slate-900 rounded-3xl p-5 shadow-lg">
     <h3 className="font-bold text-xl">
       🌸 Cảm xúc hôm nay
     </h3>
