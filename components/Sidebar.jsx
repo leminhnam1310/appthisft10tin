@@ -112,7 +112,7 @@ export default function Sidebar() {
             <PenSquare size={18} /> Bài viết
           </Link>
 
-          <Link href="/mood" className={linkClass(isActive("/mood"))}>
+          <Link href="/moods" className={linkClass(isActive("/mood"))}>
             <Heart size={18} /> Mood
           </Link>
 
