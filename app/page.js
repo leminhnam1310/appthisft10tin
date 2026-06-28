@@ -36,7 +36,7 @@ export default function Page() {
     >
       <Sidebar />
 
-      <div className="max-w-7xl mx-auto p-6 space-y-6">
+      <div className="w-full px-6 space-y-6">
         <div id="home">
           <StreakCard />
           <Hero />
