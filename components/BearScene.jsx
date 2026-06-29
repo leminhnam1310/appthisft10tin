@@ -107,7 +107,7 @@ export default function BearScene() {
           pointer-events-none
         "
       >
-        🐻
+        🧸
       </div>
     </>
   );

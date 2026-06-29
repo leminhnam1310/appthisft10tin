@@ -1,3 +1,6 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import localFont from "next/font/local";
 import "./globals.css";
 
@@ -5,7 +8,7 @@ import BackgroundEffects from "@/components/BackgroundEffects";
 import BearScene from "@/components/BearScene";
 import ThemeLoader from "@/components/ThemeLoader";
 import FloatingRobot from "@/components/FloatingRobot";
-import PrivacyGate from "@/components/PrivacyGate";
+import IntroScreen from "@/components/IntroScreen";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -19,14 +22,26 @@ const geistMono = localFont({
   weight: "100 900",
 });
 
-export const metadata = {
-  title: "11TIN",
-  description: "Psychological Care",
-};
-
 export default function RootLayout({ children }) {
+  const [introDone, setIntroDone] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+
+    const saved = localStorage.getItem("intro_done");
+    if (saved === "true") {
+      setIntroDone(true);
+    }
+  }, []);
+
+  const finishIntro = () => {
+    localStorage.setItem("intro_done", "true");
+    setIntroDone(true);
+  };
+
   return (
-    <html lang="vi">
+    <html lang="vi" suppressHydrationWarning>
       <body
         id="app-body"
         className={`
@@ -34,15 +49,35 @@ export default function RootLayout({ children }) {
           ${geistMono.variable}
           antialiased
           relative
+          min-h-screen
+          bg-slate-100 dark:bg-slate-950
+          text-slate-900 dark:text-white
+          overflow-x-hidden
         `}
       >
+        {/* ALWAYS RENDER SYSTEM */}
         <ThemeLoader />
         <BackgroundEffects />
         <BearScene />
 
-        {children}
+        {/* INTRO OVERLAY (SAFE) */}
+        {!introDone && mounted && (
+          <div className="fixed inset-0 z-[999999] bg-black/80 flex items-center justify-center">
+            <IntroScreen onFinish={finishIntro} />
+          </div>
+        )}
 
-        <PrivacyGate />
+        {/* MAIN APP (KHÔNG BAO GIỜ ẨN HOÀN TOÀN) */}
+        <div
+          className={`
+            transition-all duration-500
+            ${!introDone ? "opacity-30 blur-sm pointer-events-none" : "opacity-100"}
+          `}
+        >
+          {children}
+        </div>
+
+        {/* SYSTEM ALWAYS ON */}
         <FloatingRobot />
       </body>
     </html>

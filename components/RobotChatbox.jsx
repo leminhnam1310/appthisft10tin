@@ -11,6 +11,7 @@ export default function RobotChatBox({
   onSend,
 }) {
   const [input, setInput] = useState("");
+
   const scrollRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -19,25 +20,66 @@ export default function RobotChatBox({
   const level = Math.max(1, Math.floor((memory.xp || 0) / 100) + 1);
   const progress = (memory.xp || 0) % 100;
 
+  // =========================
+  // AUTO SCROLL (FIXED)
+  // =========================
   useEffect(() => {
-    scrollRef.current?.scrollTo({
-      top: scrollRef.current.scrollHeight,
-      behavior: "smooth",
+    const el = scrollRef.current;
+    if (!el) return;
+
+    requestAnimationFrame(() => {
+      el.scrollTo({
+        top: el.scrollHeight,
+        behavior: "smooth",
+      });
     });
   }, [messages, typing]);
 
+  // =========================
+  // AUTO FOCUS INPUT
+  // =========================
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
 
+  // =========================
+  // SEND MESSAGE
+  // =========================
   const send = () => {
     const text = input.trim();
     if (!text) return;
 
     onSend?.(text);
     setInput("");
+
+    // focus lại ngay cho UX mượt
+    setTimeout(() => {
+      inputRef.current?.focus();
+    }, 50);
   };
 
+  // =========================
+  // MESSAGE NORMALIZE
+  // =========================
+  const normalizedMessages = useMemo(() => {
+    return messages.map((msg, i) => {
+      if (typeof msg === "string") {
+        return {
+          id: i,
+          text: msg,
+        };
+      }
+
+      return {
+        id: msg.time || msg.id || i, // ❌ FIX key bug
+        text: msg.text,
+      };
+    });
+  }, [messages]);
+
+  // =========================
+  // UI
+  // =========================
   return (
     <div
       className="
@@ -90,7 +132,7 @@ z-[999999]
 
           <div className="h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden mt-1">
             <div
-              className="h-full bg-violet-500"
+              className="h-full bg-violet-500 transition-all"
               style={{ width: `${progress}%` }}
             />
           </div>
@@ -102,28 +144,24 @@ z-[999999]
         ref={scrollRef}
         className="flex-1 overflow-y-auto p-4 space-y-3"
       >
-        {messages.map((msg, i) => {
-          const text = typeof msg === "string" ? msg : msg.text;
+        {normalizedMessages.map((msg) => (
+          <div key={msg.id} className="flex items-start gap-2">
+            <div className="w-8 h-8 rounded-full bg-violet-500 flex items-center justify-center text-sm">
+              🤖
+            </div>
 
-          return (
-            <div key={i} className="flex items-start gap-2">
-              {/* avatar */}
-              <div className="w-8 h-8 rounded-full bg-violet-500 flex items-center justify-center text-sm">
-                🤖
-              </div>
-
-              {/* bubble */}
-              <div className="bg-slate-100 dark:bg-slate-800 px-3 py-2 rounded-2xl max-w-[75%]">
-                <div className="text-sm">{text}</div>
+            <div className="bg-slate-100 dark:bg-slate-800 px-3 py-2 rounded-2xl max-w-[75%]">
+              <div className="text-sm whitespace-pre-wrap">
+                {msg.text}
               </div>
             </div>
-          );
-        })}
+          </div>
+        ))}
 
         {typing && (
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-full bg-violet-500" />
-            <div className="text-sm opacity-60">typing...</div>
+            <div className="text-sm opacity-60">TENTIN đang suy nghĩ...</div>
           </div>
         )}
       </div>
@@ -148,7 +186,7 @@ outline-none text-sm
           className="
 px-4 py-2 rounded-full
 bg-violet-500 text-white
-hover:scale-105 transition
+hover:scale-105 active:scale-95 transition
 "
         >
           ➜

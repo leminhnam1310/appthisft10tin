@@ -1,150 +1,135 @@
-// ===============================
-// TENTIN Memory Engine v2
-// ===============================
+const STORAGE_KEY = "ai_memory_v2";
 
-const STORAGE_KEY = "ai_memory";
-
-const DEFAULT_MEMORY = {
-  mood: null,
-  lastMoodEmoji: "🌱",
-
+/* =========================
+   DEFAULT STATE
+========================= */
+const DEFAULT = {
   xp: 0,
   streak: 0,
 
+  lastLogin: null, // 👈 FIX STREAK REAL
+
+  mood: null,
+  lastMoodEmoji: "🌱",
+
   lastJournal: "",
   lastAchievement: "",
-
   lastMessage: "",
-
-  relationship: 1,
-
-  robotEmotion: "calm",
-
-  robotEnergy: 100,
-
-  lastReply: "",
-
-  importantFacts: [],
 
   chatHistory: [],
 
-  createdAt: Date.now(),
+  robotEmotion: "calm",
+  robotEnergy: 100,
 
   updatedAt: Date.now(),
 };
 
-// ===============================
-// LOAD
-// ===============================
-
+/* =========================
+   LOAD SAFE
+========================= */
 export const getMemory = () => {
-  if (typeof window === "undefined")
-    return DEFAULT_MEMORY;
+  if (typeof window === "undefined") return DEFAULT;
 
   try {
-    const raw =
-      localStorage.getItem(
-        STORAGE_KEY
-      );
-
-    if (!raw)
-      return {
-        ...DEFAULT_MEMORY,
-      };
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return { ...DEFAULT };
 
     return {
-      ...DEFAULT_MEMORY,
+      ...DEFAULT,
       ...JSON.parse(raw),
     };
-  } catch (err) {
-    console.error(
-      "Memory parse:",
-      err
-    );
-
-    return {
-      ...DEFAULT_MEMORY,
-    };
+  } catch {
+    return { ...DEFAULT };
   }
 };
 
-// ===============================
-// SAVE
-// ===============================
+/* =========================
+   SAVE + SYNC (REALTIME FIX)
+========================= */
+export const saveMemory = (mem) => {
+  if (typeof window === "undefined") return;
 
-export const saveMemory = (
-  memory
-) => {
-  if (typeof window === "undefined")
-    return;
+  mem.updatedAt = Date.now();
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(mem));
 
-  memory.updatedAt =
-    Date.now();
-
-  localStorage.setItem(
-    STORAGE_KEY,
-    JSON.stringify(memory)
-  );
+  // realtime sync across components
+  window.dispatchEvent(new Event("memory:update"));
 };
 
-// ===============================
-// UPDATE KEY
-// ===============================
-
-export const updateMemory = (
-  key,
-  value
-) => {
-  const mem =
-    getMemory();
-
+/* =========================
+   SAFE UPDATE
+========================= */
+export const updateMemory = (key, value) => {
+  const mem = getMemory();
   mem[key] = value;
+  saveMemory(mem);
+};
+
+/* =========================
+   XP SYSTEM (FIXED + SAFE)
+========================= */
+export const addXP = (amount = 0) => {
+  const mem = getMemory();
+
+  mem.xp = (mem.xp || 0) + amount;
+
+  saveMemory(mem);
+  return mem.xp;
+};
+
+/* =========================
+   🔥 REAL STREAK SYSTEM (FIX QUAN TRỌNG NHẤT)
+========================= */
+export const syncStreak = () => {
+  const mem = getMemory();
+
+  const today = new Date().toDateString();
+  const last = mem.lastLogin;
+
+  if (!last) {
+    mem.streak = 1;
+  } else {
+    const lastDate = new Date(last).toDateString();
+
+    if (lastDate === today) {
+      return mem.streak; // đã tính hôm nay rồi
+    }
+
+    const diff =
+      (new Date(today) - new Date(lastDate)) / (1000 * 60 * 60 * 24);
+
+    if (diff === 1) {
+      mem.streak += 1;
+    } else {
+      mem.streak = 1;
+    }
+  }
+
+  mem.lastLogin = Date.now();
+
+  saveMemory(mem);
+  return mem.streak;
+};
+
+/* =========================
+   ROBOT STATE
+========================= */
+export const setRobotEmotion = (emotion, emoji = "🌱") => {
+  const mem = getMemory();
+
+  mem.robotEmotion = emotion;
+  mem.lastMoodEmoji = emoji;
 
   saveMemory(mem);
 };
 
-// ===============================
-// CLEAR
-// ===============================
+/* =========================
+   CHAT HISTORY
+========================= */
+export const addChat = (role, text) => {
+  if (!text?.trim()) return;
 
-export const clearMemory =
-  () => {
-    if (
-      typeof window ===
-      "undefined"
-    )
-      return;
-
-    localStorage.removeItem(
-      STORAGE_KEY
-    );
-  };
-
-// ===============================
-// CHAT
-// ===============================
-
-export const addChat = (
-  role,
-  text
-) => {
-  if (!text?.trim())
-    return;
-
-  const mem =
-    getMemory();
-
-  const last =
-    mem.chatHistory.at(-1);
-
-  // chống spam
-  if (
-    last &&
-    last.role === role &&
-    last.text === text
-  ) {
-    return;
-  }
+  const mem = getMemory();
 
   mem.chatHistory.push({
     role,
@@ -152,208 +137,29 @@ export const addChat = (
     time: Date.now(),
   });
 
-  // chỉ giữ 50 tin
-  mem.chatHistory =
-    mem.chatHistory.slice(-50);
+  mem.chatHistory = mem.chatHistory.slice(-50);
 
   saveMemory(mem);
 };
 
-export const clearChat =
-  () => {
-    const mem =
-      getMemory();
+/* =========================
+   CONTEXT FOR AI
+========================= */
+export const getRobotContext = () => {
+  const mem = getMemory();
 
-    mem.chatHistory = [];
-
-    saveMemory(mem);
+  return {
+    xp: mem.xp,
+    streak: mem.streak,
+    mood: mem.mood,
+    robotEmotion: mem.robotEmotion,
+    lastMessage: mem.lastMessage,
   };
-
-// ===============================
-// LONG TERM MEMORY
-// ===============================
-
-export const rememberFact =
-  (fact) => {
-    if (!fact)
-      return;
-
-    const mem =
-      getMemory();
-
-    if (
-      !mem.importantFacts.includes(
-        fact
-      )
-    ) {
-      mem.importantFacts.push(
-        fact
-      );
-    }
-
-    mem.importantFacts =
-      mem.importantFacts.slice(
-        -30
-      );
-
-    saveMemory(mem);
-  };
-
-// ===============================
-// ROBOT
-// ===============================
-
-export const setRobotEmotion =
-  (
-    emotion,
-    emoji = "🌱"
-  ) => {
-    const mem =
-      getMemory();
-
-    mem.robotEmotion =
-      emotion;
-
-    mem.lastMoodEmoji =
-      emoji;
-
-    saveMemory(mem);
-  };
-
-export const setRobotEnergy =
-  (
-    energy
-  ) => {
-    updateMemory(
-      "robotEnergy",
-      Math.max(
-        0,
-        Math.min(
-          100,
-          energy
-        )
-      )
-    );
-  };
-
-export const increaseFriendship =
-  (
-    amount = 1
-  ) => {
-    const mem =
-      getMemory();
-
-    mem.relationship +=
-      amount;
-
-    saveMemory(mem);
-  };
-
-// ===============================
-// USER DATA
-// ===============================
-
-export const saveMood = (
-  mood,
-  emoji = ""
-) => {
-  const mem =
-    getMemory();
-
-  mem.mood = mood;
-
-  mem.lastMoodEmoji =
-    emoji;
-
-  saveMemory(mem);
 };
 
-export const saveXP = (
-  xp
-) => {
-  updateMemory(
-    "xp",
-    xp
-  );
+/* =========================
+   RESET (DEBUG)
+========================= */
+export const resetMemory = () => {
+  localStorage.removeItem(STORAGE_KEY);
 };
-
-export const saveStreak =
-  (
-    streak
-  ) => {
-    updateMemory(
-      "streak",
-      streak
-    );
-  };
-
-export const saveJournal =
-  (
-    journal
-  ) => {
-    updateMemory(
-      "lastJournal",
-      journal
-    );
-  };
-
-export const saveAchievement =
-  (
-    achievement
-  ) => {
-    updateMemory(
-      "lastAchievement",
-      achievement
-    );
-  };
-
-// ===============================
-// CONTEXT
-// ===============================
-
-export const getRobotContext =
-  () => {
-    const mem =
-      getMemory();
-
-    return {
-      mood:
-        mem.mood,
-
-      moodEmoji:
-        mem.lastMoodEmoji,
-
-      xp:
-        mem.xp,
-
-      streak:
-        mem.streak,
-
-      journal:
-        mem.lastJournal,
-
-      achievement:
-        mem.lastAchievement,
-
-      relationship:
-        mem.relationship,
-
-      robotEmotion:
-        mem.robotEmotion,
-
-      robotEnergy:
-        mem.robotEnergy,
-
-      lastReply:
-        mem.lastReply,
-
-      lastMessage:
-        mem.lastMessage,
-
-      importantFacts:
-        mem.importantFacts,
-
-      chatHistory:
-        mem.chatHistory,
-    };
-  };

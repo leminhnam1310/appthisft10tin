@@ -2,11 +2,15 @@ import { NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const MODEL = "gemini-2.5-flash";
+const TIMEOUT_MS = 12000;
+const MAX_HISTORY = 8; // 🔥 giảm token cost
 
-/* =========================
-   JSON PARSER SAFE
-========================= */
+// =========================
+// SAFE JSON PARSER (ROBUST)
+// =========================
 function extractJSON(text = "") {
+  if (!text) return null;
+
   try {
     return JSON.parse(text);
   } catch {}
@@ -14,12 +18,13 @@ function extractJSON(text = "") {
   const match = text.match(/```json([\s\S]*?)```/);
   if (match) {
     try {
-      return JSON.parse(match[1]);
+      return JSON.parse(match[1].trim());
     } catch {}
   }
 
   const first = text.indexOf("{");
   const last = text.lastIndexOf("}");
+
   if (first !== -1 && last !== -1) {
     try {
       return JSON.parse(text.slice(first, last + 1));
@@ -29,9 +34,100 @@ function extractJSON(text = "") {
   return null;
 }
 
-/* =========================
-   MAIN API
-========================= */
+// =========================
+// TIMEOUT WRAPPER (SAFE)
+// =========================
+function withTimeout(promise, ms = TIMEOUT_MS) {
+  let timeoutId;
+
+  const timeout = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error("TIMEOUT"));
+    }, ms);
+  });
+
+  return Promise.race([
+    promise.finally(() => clearTimeout(timeoutId)),
+    timeout,
+  ]);
+}
+
+// =========================
+// CLEAN HISTORY (TOKEN OPTIMIZED)
+// =========================
+function buildHistory(messages) {
+  return (messages || [])
+    .slice(-MAX_HISTORY)
+    .map((m) => {
+      const role = m.role === "assistant" ? "AI" : "User";
+      const text = (m.text || "").replace(/\s+/g, " ").trim();
+      return `${role}: ${text}`;
+    })
+    .join("\n");
+}
+
+// =========================
+// NORMALIZE OUTPUT
+// =========================
+function normalize(data = {}, fallbackText = "") {
+  return {
+    reply:
+      typeof data.reply === "string" && data.reply.trim()
+        ? data.reply.trim()
+        : fallbackText || "Mình vẫn ở đây 🌱",
+
+    emotion: data.emotion || "calm",
+    emoji: data.emoji || "🌱",
+
+    priority:
+      typeof data.priority === "number"
+        ? Math.min(Math.max(data.priority, 0), 1)
+        : 0.5,
+
+    shouldSpeak:
+      typeof data.shouldSpeak === "boolean" ? data.shouldSpeak : true,
+
+    remember: Array.isArray(data.remember) ? data.remember : [],
+
+    followUp: typeof data.followUp === "number" ? data.followUp : 0,
+
+    action: typeof data.action === "string" ? data.action : "none",
+  };
+}
+
+// =========================
+// RETRY GEMINI (SMART)
+// =========================
+async function safeGenerate(model, prompt, retries = 2) {
+  let lastErr;
+
+  for (let i = 0; i <= retries; i++) {
+    try {
+      const result = await withTimeout(
+        model.generateContent(prompt),
+        TIMEOUT_MS
+      );
+
+      const response = await result.response;
+      const text = (await response.text()).trim();
+
+      if (text) return text;
+    } catch (err) {
+      lastErr = err;
+
+      // exponential backoff nhẹ
+      await new Promise((r) =>
+        setTimeout(r, 300 * Math.pow(2, i))
+      );
+    }
+  }
+
+  throw lastErr || new Error("Gemini failed");
+}
+
+// =========================
+// MAIN API
+// =========================
 export async function POST(req) {
   try {
     const apiKey = process.env.GEMINI_API_KEY;
@@ -45,76 +141,43 @@ export async function POST(req) {
 
     const { messages = [], context = {} } = await req.json();
 
-    /* =========================
-       CHAT HISTORY SAFE
-    ========================= */
-    const history = messages
-      .slice(-15)
-      .map((m) => {
-        const role = m.role === "assistant" ? "TENTIN" : "User";
-        return `${role}: ${m.text}`;
-      })
-      .join("\n");
+    const history = buildHistory(messages);
 
     const lastAssistant =
-      messages
-        .filter((m) => m.role === "assistant")
-        .slice(-1)[0]?.text || "";
+      [...messages]
+        .reverse()
+        .find((m) => m.role === "assistant")?.text || "";
 
-    /* =========================
-       PROMPT (ANTI LOOP VERSION)
-    ========================= */
+    // =========================
+    // LIGHTWEIGHT PROMPT (OPTIMIZED)
+    // =========================
     const prompt = `
-Bạn là TENTIN.
+You are TENTIN.
 
-==========================
-ROLE
-==========================
-- Bạn là người bạn thật, không phải AI.
-- Trả lời tự nhiên, cảm xúc, không máy móc.
-- Không được tự giới thiệu.
-- Không nói giống ChatGPT.
+Return ONLY valid JSON.
 
-==========================
-ANTI-REPEAT RULE (CỰC QUAN TRỌNG)
-==========================
-- TUYỆT ĐỐI không lặp lại câu trước đó.
-- Không dùng lại cấu trúc câu giống quá 50%.
-- Nếu ý đã xuất hiện → phải diễn đạt khác hoàn toàn.
-- Không được trả lời theo template cố định.
-- Ưu tiên tự nhiên như người thật.
+NO markdown. NO explanation.
 
-Câu trả lời gần nhất:
+Previous reply:
 ${lastAssistant}
 
-==========================
-USER DATA
-==========================
+Context:
 Mood: ${context.mood || "unknown"}
 XP: ${context.xp || 0}
-Level: ${context.level || 1}
 Streak: ${context.streak || 0}
-Journal: ${context.journal || "none"}
 
-==========================
-HISTORY
-==========================
+History:
 ${history}
 
-==========================
-TASK
-==========================
-1. Hiểu cảm xúc người dùng
-2. Trả lời tự nhiên
-3. Không lặp
-4. Có thể ngắn hoặc dài tùy ngữ cảnh
-5. Luôn là TENTIN (bạn đồng hành)
+RULES:
+- Natural human tone
+- No repetition
+- Short or long depending on emotion
+- No self introduction
 
-==========================
-OUTPUT (JSON ONLY)
-==========================
+OUTPUT JSON:
 {
-  "reply": "...",
+  "reply": "string",
   "emotion": "happy|care|sad|thinking|excited|calm",
   "emoji": "🌱",
   "priority": 0.5,
@@ -123,82 +186,46 @@ OUTPUT (JSON ONLY)
   "followUp": 0,
   "action": "none"
 }
-
-KHÔNG markdown, KHÔNG giải thích.
 `;
 
-    /* =========================
-       GEMINI INIT
-    ========================= */
     const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({ model: MODEL });
 
-    const model = genAI.getGenerativeModel({
-      model: MODEL,
-    });
+    // =========================
+    // CALL GEMINI (SAFE + RETRY)
+    // =========================
+    const rawText = await safeGenerate(model, prompt, 2);
 
-    const result = await model.generateContent({
-      contents: [
-        {
-          role: "user",
-          parts: [{ text: prompt }],
-        },
-      ],
+    // =========================
+    // PARSE OUTPUT
+    // =========================
+    let data = extractJSON(rawText);
 
-      generationConfig: {
-        temperature: 0.6,
-        topP: 0.9,
-        topK: 40,
-        maxOutputTokens: 300,
-      },
-    });
-
-    const raw = result.response.text().trim();
-
-    /* =========================
-       PARSE OUTPUT
-    ========================= */
-    let data = extractJSON(raw);
-
-    if (!data) {
-      data = {
-        reply: raw.replace(/\*/g, "").trim(),
-        emotion: "calm",
-        emoji: "🌱",
-        priority: 0.5,
-        shouldSpeak: true,
-        remember: [],
-        followUp: 0,
-        action: "none",
-      };
-    }
-
-    /* =========================
-       VALIDATE SAFE
-    ========================= */
-    data.reply = data.reply || "Mình vẫn ở đây 🌱";
-    data.emotion = data.emotion || "calm";
-    data.emoji = data.emoji || "🌱";
-    data.priority = typeof data.priority === "number" ? data.priority : 0.5;
-    data.shouldSpeak = typeof data.shouldSpeak === "boolean" ? data.shouldSpeak : true;
-    data.remember = Array.isArray(data.remember) ? data.remember : [];
+    data = normalize(data, rawText);
 
     return NextResponse.json(data);
   } catch (err) {
     console.error("Gemini Error:", err);
 
+    const fallback =
+      err.message === "TIMEOUT"
+        ? "Hơi chậm một chút, thử lại giúp mình nhé 🌱"
+        : "Mình vẫn ở đây 🌱";
+
     return NextResponse.json(
-      {
-        reply: "Mình vẫn ở đây 🌱",
-        emotion: "calm",
-        emoji: "🌱",
-        priority: 0.5,
-        shouldSpeak: true,
-        remember: [],
-        followUp: 0,
-        action: "none",
-        error: err.message,
-      },
-      { status: 500 }
+      normalize(
+        {
+          reply: fallback,
+          emotion: "calm",
+          emoji: "🌱",
+          priority: 0.4,
+          shouldSpeak: true,
+          followUp: 0,
+          action: "none",
+        },
+        fallback
+      ),
+      { status: 200 }
     );
   }
 }

@@ -1,15 +1,16 @@
 "use client";
 
 import Image from "next/image";
-import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
 export default function Hero() {
   const router = useRouter();
+
   const [show, setShow] = useState(false);
   const [animating, setAnimating] = useState(false);
 
-  // 👉 chỉ hiện 1 lần
+  // ================= CHECK INTRO =================
   useEffect(() => {
     const seen = localStorage.getItem("seen_intro");
 
@@ -18,29 +19,30 @@ export default function Hero() {
     }
   }, []);
 
-  // 👉 auto fallback (5s)
+  // ================= AUTO CLOSE =================
   useEffect(() => {
     if (!show) return;
 
     const t = setTimeout(() => {
-      handleClose();
+      handleClose("/"); // auto vào home
     }, 5000);
 
     return () => clearTimeout(t);
   }, [show]);
 
+  // ================= CLOSE HANDLER =================
   const handleClose = (path) => {
-    setAnimating(true);
+    if (!path) path = "/";
 
-    // mark đã xem intro
+    setAnimating(true);
     localStorage.setItem("seen_intro", "true");
 
     setTimeout(() => {
       setShow(false);
       setAnimating(false);
 
-      if (path) router.push(path);
-    }, 400); // delay cho animation mượt
+      router.push(path); // 🔥 FIX CHÍNH
+    }, 450);
   };
 
   if (!show) return null;
@@ -48,12 +50,14 @@ export default function Hero() {
   return (
     <div
       className={`
-        fixed inset-0 z-50 flex items-center justify-center
+        fixed inset-0 z-[9999]
+        flex items-center justify-center
         bg-gradient-to-br from-[#dcefdc] to-[#f3fff3]
         dark:from-[#0f172a] dark:to-[#020617]
         text-gray-900 dark:text-white
-        transition-all duration-500
-        ${animating ? "opacity-0 scale-95" : "opacity-100 scale-100"}
+
+        transition-all duration-500 ease-out
+        ${animating ? "opacity-0 scale-95 blur-sm" : "opacity-100 scale-100"}
       `}
     >
       <div className="grid md:grid-cols-2 w-full h-full">
@@ -61,7 +65,7 @@ export default function Hero() {
         {/* LEFT */}
         <div className="flex flex-col justify-center p-10 md:p-16">
 
-          <h1 className="text-5xl font-bold">
+          <h1 className="text-5xl font-bold leading-tight">
             Chào mừng bạn đến với 11TIN
           </h1>
 
@@ -71,18 +75,18 @@ export default function Hero() {
 
           <div className="mt-8 flex gap-4">
 
-            {/* BẮT ĐẦU */}
+            {/* START */}
             <button
               onClick={() => handleClose("/")}
-              className="px-6 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 transition"
+              className="px-6 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 transition active:scale-95"
             >
               Bắt đầu
             </button>
 
-            {/* KHÁM PHÁ */}
+            {/* EXPLORE */}
             <button
-              onClick={() => handleClose("/moods")}
-              className="px-6 py-3 border border-green-600 rounded-xl text-green-700 dark:text-green-300 hover:bg-green-100 dark:hover:bg-green-900/30 transition"
+              onClick={() => handleClose("/posts")}
+              className="px-6 py-3 border border-green-600 rounded-xl text-green-700 dark:text-green-300 hover:bg-green-100 dark:hover:bg-green-900/30 transition active:scale-95"
             >
               Khám phá
             </button>
@@ -96,8 +100,8 @@ export default function Hero() {
             src="https://anhdephd.vn/wp-content/uploads/2022/06/hinh-anh-dong-de-thuong.gif"
             alt="pets"
             fill
-            className="object-contain"
             priority
+            className="object-contain"
           />
         </div>
 
