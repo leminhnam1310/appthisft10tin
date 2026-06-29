@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { auth } from "@/app/lib/firebase";
-import { sendFriendRequest } from "@/app/lib/firebase"; 
+import { sendFriendRequest } from "@/app/lib/friends";
 // ⚠️ nhớ sửa đúng path nếu bạn tách file
 
 export default function FriendsProfile({ user }) {
@@ -14,7 +14,7 @@ export default function FriendsProfile({ user }) {
   const isMe = currentUser?.uid === user.uid;
 
   const [loading, setLoading] = useState(false);
-  const [sent, setSent] = useState(false);
+  const [sent, setSent] = useState(false);  
 
   async function handleAdd() {
     if (!currentUser || loading || sent) return;

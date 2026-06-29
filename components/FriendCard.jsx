@@ -1,188 +1,194 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { auth } from "@/app/lib/firebase";
+
 import {
   sendFriendRequest,
   removeFriend,
+  listenFriendRequests,
+  acceptFriendRequest,
+  declineFriendRequest,
+  isFriend,
 } from "@/app/lib/friends";
 
-export default function FriendCard({
-  user,
-  isFriend = false,
-  requestSent = false,
-  compact = false,
-}) {
+export default function FriendCard({ user, compact = false }) {
   const currentUser = auth.currentUser;
+
+  const [friendStatus, setFriendStatus] = useState("none");
+  const [requestId, setRequestId] = useState(null);
 
   if (!user) return null;
 
-  const isMe =
-    currentUser &&
-    currentUser.uid === user.uid;
+  const isMe = currentUser?.uid === user.uid;
 
-  async function handleAddFriend() {
-    if (!currentUser) return;
+  // =========================
+  // CHECK STATUS REALTIME
+  // =========================
+  useEffect(() => {
+    if (!currentUser || !user) return;
 
-    try {
-      await sendFriendRequest(
-        currentUser.uid,
-        user.uid
-      );
+    let unsub;
 
-      alert("🎉 Đã gửi lời mời kết bạn");
-    } catch (err) {
-      console.error(err);
-      alert("Không thể gửi lời mời.");
+    async function check() {
+      const friend = await isFriend(currentUser.uid, user.uid);
+
+      if (friend) {
+        setFriendStatus("friend");
+        return;
+      }
+
+      // listen incoming requests
+      unsub = listenFriendRequests(currentUser.uid, (requests) => {
+        const req = requests.find(
+          (r) => r.fromUid === user.uid
+        );
+
+        if (req) {
+          setFriendStatus("incoming");
+          setRequestId(req.id);
+        } else {
+          setFriendStatus("none");
+          setRequestId(null);
+        }
+      });
     }
+
+    check();
+
+    return () => unsub && unsub();
+  }, [currentUser, user]);
+
+  // =========================
+  // ACTIONS
+  // =========================
+  async function handleAddFriend() {
+    await sendFriendRequest(currentUser.uid, user.uid);
+    setFriendStatus("sent");
+  }
+
+  async function handleAccept() {
+    await acceptFriendRequest({
+      id: requestId,
+      fromUid: user.uid,
+      toUid: currentUser.uid,
+    });
+
+    setFriendStatus("friend");
+  }
+
+  async function handleDecline() {
+    await declineFriendRequest(requestId);
+    setFriendStatus("none");
   }
 
   async function handleRemoveFriend() {
-    if (
-      !confirm(
-        `Xóa ${user.displayName} khỏi danh sách bạn bè?`
-      )
-    )
-      return;
+    if (!confirm("Xóa bạn bè?")) return;
 
-    try {
-      await removeFriend(user.friendDocId);
-
-      alert("Đã xóa bạn.");
-    } catch (err) {
-      console.error(err);
-    }
+    await removeFriend(currentUser.uid, user.uid);
+    setFriendStatus("none");
   }
 
+  // =========================
+  // UI
+  // =========================
   return (
-    <div
-      className="
-      rounded-3xl
-      border
-      border-slate-200
-      dark:border-slate-800
-      bg-white
-      dark:bg-slate-900
-      shadow-sm
-      hover:shadow-xl
-      transition-all
-      duration-300
-      overflow-hidden
-      "
-    >
-      {/* Cover */}
+    <div className="rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
 
-      <div className="relative h-24 bg-gradient-to-r from-violet-600 via-fuchsia-500 to-pink-500">
+      {/* COVER */}
+      <div className="h-24 bg-gradient-to-r from-violet-600 via-fuchsia-500 to-pink-500" />
 
-        {user.cover && (
-          <img
-            src={user.cover}
-            alt=""
-            className="w-full h-full object-cover"
-          />
-        )}
+      {/* BODY */}
+      <div className="p-5">
 
-      </div>
-
-      {/* Avatar */}
-
-      <div className="px-5">
-
-        <div className="-mt-10 relative w-fit">
-
-          <div className="h-20 w-20 rounded-full overflow-hidden border-4 border-white dark:border-slate-900 bg-violet-600 flex items-center justify-center text-white text-2xl font-bold">
-
+        {/* AVATAR */}
+        <div className="-mt-10 w-fit relative">
+          <div className="h-20 w-20 rounded-full bg-violet-600 text-white flex items-center justify-center text-xl font-bold border-4 border-white dark:border-slate-900 overflow-hidden">
             {user.avatar ? (
-              <img
-                src={user.avatar}
-                alt=""
-                className="h-full w-full object-cover"
-              />
+              <img src={user.avatar} className="w-full h-full object-cover" />
             ) : (
               user.displayName?.charAt(0)
             )}
-
           </div>
-
-          {user.online && (
-            <span className="absolute bottom-1 right-1 h-4 w-4 rounded-full bg-green-500 border-2 border-white dark:border-slate-900" />
-          )}
-
         </div>
 
-        {/* Info */}
+        {/* INFO */}
+        <h2 className="mt-3 font-bold text-lg text-slate-900 dark:text-white">
+          {user.displayName}
+        </h2>
 
-        <div className="mt-3">
+        <p className="text-violet-500">@{user.username}</p>
 
-          <h2 className="font-bold text-lg text-slate-900 dark:text-white">
-            {user.displayName}
-          </h2>
-
-          <p className="text-violet-500">
-            @{user.username}
+        {!compact && (
+          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+            {user.bio || "Chưa có bio"}
           </p>
+        )}
 
-          {!compact && (
-            <>
-              <p className="mt-3 text-sm text-slate-600 dark:text-slate-400 line-clamp-2">
-                {user.bio ||
-                  "Chưa có lời giới thiệu."}
-              </p>
+        {/* BUTTONS */}
+        <div className="mt-5 flex gap-2">
 
-              <div className="mt-4 flex gap-4 text-sm text-slate-500">
-
-                <span>
-                  👥 {user.friendCount || 0}
-                </span>
-
-                <span>
-                  📝 {user.postCount || 0}
-                </span>
-
-              </div>
-            </>
-          )}
-
-        </div>
-
-        {/* Buttons */}
-
-        <div className="mt-6 flex gap-2 pb-5">
-
-          {isMe ? (
+          {/* ME */}
+          {isMe && (
             <Link
               href="/profile"
-              className="flex-1 rounded-xl bg-violet-600 py-2.5 text-center text-white hover:bg-violet-500"
+              className="flex-1 bg-violet-600 text-white py-2 rounded-xl text-center"
             >
               Edit
             </Link>
-          ) : isFriend ? (
+          )}
+
+          {/* FRIEND */}
+          {!isMe && friendStatus === "friend" && (
             <>
               <Link
                 href={`/messages/${user.uid}`}
-                className="flex-1 rounded-xl bg-violet-600 py-2.5 text-center text-white hover:bg-violet-500"
+                className="flex-1 bg-violet-600 text-white py-2 rounded-xl text-center"
               >
                 💬 Chat
               </Link>
 
               <button
                 onClick={handleRemoveFriend}
-                className="rounded-xl border border-red-300 px-4 hover:bg-red-50 dark:border-red-700 dark:hover:bg-red-900/30"
+                className="px-4 border border-red-300 rounded-xl text-red-500"
               >
                 ❌
               </button>
             </>
-          ) : requestSent ? (
-            <button
-              disabled
-              className="flex-1 rounded-xl bg-gray-400 py-2.5 text-white cursor-not-allowed"
-            >
+          )}
+
+          {/* INCOMING REQUEST */}
+          {!isMe && friendStatus === "incoming" && (
+            <>
+              <button
+                onClick={handleAccept}
+                className="flex-1 bg-green-600 text-white py-2 rounded-xl"
+              >
+                ✔ Accept
+              </button>
+
+              <button
+                onClick={handleDecline}
+                className="px-4 border border-red-300 rounded-xl text-red-500"
+              >
+                ❌
+              </button>
+            </>
+          )}
+
+          {/* SENT */}
+          {!isMe && friendStatus === "sent" && (
+            <button className="flex-1 bg-gray-400 text-white py-2 rounded-xl cursor-not-allowed">
               ⏳ Đã gửi
             </button>
-          ) : (
+          )}
+
+          {/* NONE */}
+          {!isMe && friendStatus === "none" && (
             <button
               onClick={handleAddFriend}
-              className="flex-1 rounded-xl bg-violet-600 py-2.5 text-white hover:bg-violet-500"
+              className="flex-1 bg-violet-600 text-white py-2 rounded-xl"
             >
               ❤️ Kết bạn
             </button>

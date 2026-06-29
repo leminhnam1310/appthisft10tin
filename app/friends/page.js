@@ -1,239 +1,146 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import FriendCard from "@/components/FriendCard";
-
-const demoUsers = [
-  {
-    uid: "1",
-    displayName: "Minh Nam",
-    username: "minhnam",
-    bio: "AI Developer • Love coding 🤖",
-    location: "TP.VT",
-    friendCount: 0,
-    postCount: 0,
-  },
-];
+import { auth } from "@/app/lib/firebase";
+import {
+  listenUsers,
+  listenFriends,
+  getSuggestions,
+} from "@/app/lib/friends";
 
 export default function FriendsPage() {
   const [search, setSearch] = useState("");
+  const [users, setUsers] = useState([]);
+  const [friends, setFriends] = useState([]);
+  const [suggestions, setSuggestions] = useState([]);
 
-  const users = useMemo(() => {
-    const keyword = search.toLowerCase();
+  const currentUser = auth.currentUser;
 
-    return demoUsers.filter(
-      (u) =>
-        u.displayName.toLowerCase().includes(keyword) ||
-        u.username.toLowerCase().includes(keyword)
-    );
-  }, [search]);
+  // ======================
+  // LOAD USERS
+  // ======================
+  useEffect(() => {
+    const unsub = listenUsers((list) => {
+      setUsers(list);
+    });
+
+    return () => unsub();
+  }, []);
+
+  // ======================
+  // LOAD FRIENDS
+  // ======================
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const unsub = listenFriends(currentUser.uid, (list) => {
+      setFriends(list);
+    });
+
+    return () => unsub();
+  }, [currentUser]);
+
+  // ======================
+  // LOAD SUGGESTIONS
+  // ======================
+  useEffect(() => {
+    if (!currentUser) return;
+
+    getSuggestions(currentUser.uid).then(setSuggestions);
+  }, [currentUser]);
+
+  // ======================
+  // SEARCH FILTER
+  // ======================
+  const filteredUsers = useMemo(() => {
+    const key = search.toLowerCase();
+
+    return users.filter((u) => {
+      if (!currentUser) return false;
+      if (u.uid === currentUser.uid) return false;
+
+      return (
+        u.displayName?.toLowerCase().includes(key) ||
+        u.username?.toLowerCase().includes(key)
+      );
+    });
+  }, [users, search, currentUser]);
 
   return (
     <main className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors">
 
       {/* HEADER */}
-
       <div className="sticky top-0 z-30 backdrop-blur-xl bg-white/70 dark:bg-slate-950/70 border-b border-slate-200 dark:border-slate-800">
-
         <div className="max-w-7xl mx-auto p-6">
 
-          <div className="flex flex-col lg:flex-row justify-between gap-5">
-
-            <div>
-
-              <h1 className="text-4xl font-bold text-slate-900 dark:text-white">
-                👥 Bạn bè
-              </h1>
-
-              <p className="mt-2 text-slate-500 dark:text-slate-400">
-                Tìm kiếm, kết bạn và trò chuyện với mọi người.
-              </p>
-
-            </div>
-
-            <div className="flex gap-3">
-
-              <button
-                className="
-                px-5
-                py-3
-                rounded-2xl
-                bg-violet-600
-                hover:bg-violet-500
-                text-white
-                transition
-                "
-              >
-                ➕ Tạo nhóm
-              </button>
-
-              <button
-                className="
-                px-5
-                py-3
-                rounded-2xl
-                bg-white
-                dark:bg-slate-900
-                border
-                border-slate-200
-                dark:border-slate-700
-                hover:bg-slate-100
-                dark:hover:bg-slate-800
-                transition
-                text-slate-800
-                dark:text-white
-                "
-              >
-                💬 Tin nhắn
-              </button>
-
-            </div>
-
-          </div>
+          <h1 className="text-4xl font-bold text-slate-900 dark:text-white">
+            👥 Bạn bè
+          </h1>
 
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="🔍 Tìm theo tên hoặc @username..."
+            placeholder="🔍 Tìm bạn bè..."
             className="
-            mt-6
-            w-full
-            rounded-2xl
-            px-5
-            py-4
-            bg-white
-            dark:bg-slate-900
-            border
-            border-slate-200
-            dark:border-slate-700
-            text-slate-900
-            dark:text-white
-            placeholder:text-slate-400
-            outline-none
-            focus:ring-2
-            focus:ring-violet-500
-            transition
+              mt-5 w-full p-4 rounded-2xl
+              bg-white dark:bg-slate-900
+              border border-slate-200 dark:border-slate-700
+              text-slate-900 dark:text-white
+              outline-none focus:ring-2 focus:ring-violet-500
             "
           />
-
         </div>
-
       </div>
 
       <div className="max-w-7xl mx-auto p-6 space-y-10">
 
-        {/* REQUEST */}
-
+        {/* SUGGESTIONS */}
         <section>
-
-          <div className="flex items-center justify-between mb-5">
-
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
-              📩 Lời mời kết bạn
-            </h2>
-
-            <span className="text-sm text-slate-500">
-              0 lời mời
-            </span>
-
-          </div>
-
-          <div
-            className="
-            rounded-3xl
-            border
-            border-dashed
-            border-slate-300
-            dark:border-slate-700
-            bg-white
-            dark:bg-slate-900
-            p-10
-            text-center
-            "
-          >
-            <p className="text-slate-500 dark:text-slate-400">
-              Hiện chưa có lời mời kết bạn.
-            </p>
-          </div>
-
-        </section>
-
-        {/* PEOPLE */}
-
-        <section>
-
-          <div className="flex items-center justify-between mb-5">
-
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
-              ⭐ Có thể bạn biết
-            </h2>
-
-            <span className="text-sm text-slate-500">
-              {users.length} người
-            </span>
-
-          </div>
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-5">
+            ⭐ Gợi ý kết bạn
+          </h2>
 
           <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
-            {users.map((user) => (
-              <FriendCard
-                key={user.uid}
-                user={user}
-              />
+            {suggestions.map((user) => (
+              <FriendCard key={user.uid} user={user} />
             ))}
           </div>
-
         </section>
 
         {/* FRIENDS */}
-
         <section>
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-5">
+            ❤️ Bạn bè
+          </h2>
 
-          <div className="flex items-center justify-between mb-5">
-
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
-              ❤️ Bạn bè
-            </h2>
-
-            <span className="text-sm text-slate-500">
-              {users.length} người
-            </span>
-
+          <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
+            {friends.length === 0 ? (
+              <p className="text-slate-500">Chưa có bạn bè</p>
+            ) : (
+              friends.map((user) => (
+                <FriendCard key={user.uid} user={user} />
+              ))
+            )}
           </div>
-
-          {users.length === 0 ? (
-            <div
-              className="
-              rounded-3xl
-              border
-              border-dashed
-              border-slate-300
-              dark:border-slate-700
-              bg-white
-              dark:bg-slate-900
-              p-12
-              text-center
-              "
-            >
-              <p className="text-slate-500 dark:text-slate-400">
-                Không tìm thấy người dùng.
-              </p>
-            </div>
-          ) : (
-            <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
-              {users.map((user) => (
-                <FriendCard
-                  key={user.uid}
-                  user={user}
-                />
-              ))}
-            </div>
-          )}
-
         </section>
 
-      </div>
+        {/* SEARCH RESULT */}
+        {search && (
+          <section>
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-5">
+              🔍 Kết quả tìm kiếm
+            </h2>
 
+            <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
+              {filteredUsers.map((user) => (
+                <FriendCard key={user.uid} user={user} />
+              ))}
+            </div>
+          </section>
+        )}
+
+      </div>
     </main>
   );
 }

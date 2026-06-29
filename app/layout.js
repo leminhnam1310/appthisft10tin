@@ -36,22 +36,13 @@ export default function RootLayout({ children }) {
           relative
         `}
       >
-        {/* 🌗 theme system */}
         <ThemeLoader />
-
-        {/* 🌌 background layer */}
         <BackgroundEffects />
-
-        {/* 🐻 bear AI (low priority layer) */}
         <BearScene />
 
-        {/* 📦 main content */}
         {children}
 
-        {/* 🔐 privacy overlay (PHẢI TRÊN TẤT CẢ) */}
         <PrivacyGate />
-
-        {/* 🤖 robot global (after consent) */}
         <FloatingRobot />
       </body>
     </html>

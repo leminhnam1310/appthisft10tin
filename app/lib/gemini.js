@@ -1,41 +1,20 @@
 // =========================================
-// TENTIN Gemini Engine V2
+// TENTIN Gemini Engine V3
 // =========================================
 
 const API = "/api/chat";
-
-const TIMEOUT = 15000;
+const TIMEOUT = 20000;
 
 const DEFAULT_RESPONSE = {
   reply: "Mình vẫn ở đây 🌱",
-
   emotion: "calm",
-
   emoji: "🌱",
-
   priority: 0.5,
-
   shouldSpeak: true,
-
   remember: [],
-
   followUp: 0,
-
   action: "none",
 };
-
-function withTimeout(ms) {
-  const controller = new AbortController();
-
-  const timeout = setTimeout(() => {
-    controller.abort();
-  }, ms);
-
-  return {
-    controller,
-    timeout,
-  };
-}
 
 function normalize(data = {}) {
   return {
@@ -54,94 +33,80 @@ function normalize(data = {}) {
         ? data.emoji
         : DEFAULT_RESPONSE.emoji,
 
-    priority: Math.max(
-      0,
-      Math.min(
-        Number(data.priority) || 0.5,
-        1
-      )
-    ),
+    priority:
+      typeof data.priority === "number"
+        ? Math.min(Math.max(data.priority, 0), 1)
+        : DEFAULT_RESPONSE.priority,
 
     shouldSpeak:
-      typeof data.shouldSpeak ===
-      "boolean"
+      typeof data.shouldSpeak === "boolean"
         ? data.shouldSpeak
         : true,
 
-    remember: Array.isArray(
-      data.remember
-    )
+    remember: Array.isArray(data.remember)
       ? data.remember
       : [],
 
-    followUp: Math.max(
-      0,
-      Math.min(
-        Number(data.followUp) || 0,
-        3600
-      )
-    ),
+    followUp:
+      typeof data.followUp === "number"
+        ? data.followUp
+        : 0,
 
     action:
-      typeof data.action ===
-      "string"
+      typeof data.action === "string"
         ? data.action
         : "none",
   };
 }
 
-async function request(
-  messages,
-  context
-) {
-  const {
-    controller,
-    timeout,
-  } = withTimeout(
-    TIMEOUT
-  );
+async function fetchGemini(messages, context) {
+  const controller = new AbortController();
+
+  const timeout = setTimeout(() => {
+    controller.abort();
+  }, TIMEOUT);
 
   try {
-    const res = await fetch(
-      API,
-      {
-        method: "POST",
+    const res = await fetch(API, {
+      method: "POST",
 
-        headers: {
-          "Content-Type":
-            "application/json",
-        },
+      headers: {
+        "Content-Type": "application/json",
+      },
 
-        body: JSON.stringify({
-          messages,
-          context,
-        }),
+      body: JSON.stringify({
+        messages,
+        context,
+      }),
 
-        signal:
-          controller.signal,
-      }
-    );
+      signal: controller.signal,
+    });
 
     clearTimeout(timeout);
 
-    let data = {};
+    let json = {};
 
     try {
-      data =
-        await res.json();
-    } catch {}
+      json = await res.json();
+    } catch {
+      throw new Error("API trả dữ liệu không hợp lệ.");
+    }
 
     if (!res.ok) {
       throw new Error(
-        data.error ||
-          data.reply ||
-          "Có lỗi xảy ra."
+        json.error ||
+          json.reply ||
+          "Gemini Error"
       );
     }
 
-    return normalize(data);
+    return normalize(json);
   } catch (err) {
     clearTimeout(timeout);
+
+    if (err.name === "AbortError") {
+      throw new Error("Gemini timeout.");
+    }
 
     throw err;
   }
@@ -151,45 +116,41 @@ export async function askGemini(
   messages = [],
   context = {}
 ) {
-  if (
-    !Array.isArray(messages)
-  ) {
+  if (!Array.isArray(messages)) {
     throw new Error(
       "messages phải là Array"
     );
   }
 
-  let lastError = null;
+  let lastError;
 
-  // Retry 2 lần
-  for (
-    let i = 0;
-    i < 2;
-    i++
-  ) {
+  for (let i = 0; i < 3; i++) {
     try {
-      return await request(
-        messages,
-        context
-      );
+      const result =
+        await fetchGemini(
+          messages,
+          context
+        );
+
+      if (
+        result.reply &&
+        result.reply.length > 0
+      ) {
+        return result;
+      }
     } catch (err) {
       lastError = err;
 
-      if (
-        err.name ===
-        "AbortError"
-      ) {
-        console.warn(
-          "Gemini timeout"
-        );
-      }
+      console.warn(
+        `Gemini Retry ${i + 1}:`,
+        err.message
+      );
 
-      await new Promise(
-        (resolve) =>
-          setTimeout(
-            resolve,
-            800
-          )
+      await new Promise((r) =>
+        setTimeout(
+          r,
+          700 * (i + 1)
+        )
       );
     }
   }
@@ -201,7 +162,6 @@ export async function askGemini(
 
   return {
     ...DEFAULT_RESPONSE,
-
     error:
       lastError?.message ||
       "Unknown Error",

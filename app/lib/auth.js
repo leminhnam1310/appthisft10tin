@@ -7,15 +7,19 @@ import {
 } from "firebase/auth";
 
 import { auth } from "./firebase";
+import { createUserIfNotExists } from "./friends";
 
-// ==========================
-// Google Login
-// ==========================
 const googleProvider = new GoogleAuthProvider();
+
+googleProvider.setCustomParameters({
+  prompt: "select_account",
+});
 
 export async function loginWithGoogle() {
   try {
     const result = await signInWithPopup(auth, googleProvider);
+
+    await createUserIfNotExists(result.user); // ⭐ FIX
 
     return result.user;
   } catch (error) {
@@ -24,12 +28,11 @@ export async function loginWithGoogle() {
   }
 }
 
-// ==========================
-// Guest Login
-// ==========================
 export async function loginAsGuest() {
   try {
     const result = await signInAnonymously(auth);
+
+    await createUserIfNotExists(result.user); // ⭐ FIX
 
     return result.user;
   } catch (error) {
@@ -38,33 +41,20 @@ export async function loginAsGuest() {
   }
 }
 
-// ==========================
-// Logout
-// ==========================
 export async function logout() {
-  try {
-    await signOut(auth);
-  } catch (error) {
-    console.error("Logout Error:", error);
-    throw error;
-  }
+  await signOut(auth);
 }
 
-// ==========================
-// Get Current User
-// ==========================
 export function getCurrentUser() {
   return auth.currentUser;
 }
 
-// ==========================
-// Update Display Name
-// (Sau này đổi tên user)
-// ==========================
 export async function changeDisplayName(name) {
   if (!auth.currentUser) return;
 
   await updateProfile(auth.currentUser, {
     displayName: name,
   });
+
+  return auth.currentUser;
 }

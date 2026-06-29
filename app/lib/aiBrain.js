@@ -6,6 +6,7 @@ import {
 } from "./memory";
 
 let lastOutput = "";
+let lastReplyTime = 0;
 
 const fallbackResponses = {
   mood_changed: [
@@ -33,11 +34,14 @@ const fallbackResponses = {
   ],
 
   typing: [
-    "Mình đang lắng nghe...",
+    "Mình đang lắng nghe..."
   ],
 
   default: [
     "Mình vẫn ở đây 🤍",
+    "Mình vẫn đang lắng nghe nè 🌱",
+    "Có mình ở đây rồi 😊",
+    "Kể tiếp cho mình nghe nhé."
   ],
 };
 
@@ -47,13 +51,9 @@ function randomFallback(type) {
     fallbackResponses.default;
 
   return arr[
-    Math.floor(
-      Math.random() *
-        arr.length
-    )
+    Math.floor(Math.random() * arr.length)
   ];
 }
-
 export async function getAIResponse({
   type = "chat",
   message = "",
@@ -62,132 +62,141 @@ export async function getAIResponse({
   try {
     const mem = getMemory();
 
-    // Lưu câu user vào memory
+    // Lưu tin nhắn người dùng
     if (message.trim()) {
-      addChat(
-        "user",
-        message
-      );
+      addChat("user", message);
     }
 
+    // Lấy lịch sử gần nhất
     const history =
-      mem.chatHistory
-        ?.slice(-20)
-        ?.map((m) => ({
+      (mem.chatHistory || [])
+        .slice(-20)
+        .map((m) => ({
           role: m.role,
           text: m.text,
-        })) || [];
+        }));
 
+    // Prompt hệ thống
     const systemPrompt = `
 Bạn là TENTIN.
 
 Bạn KHÔNG phải ChatGPT.
 
-Bạn là một người bạn nhỏ luôn đồng hành cùng người dùng.
+Bạn là một người bạn đồng hành.
 
 Tính cách:
-
+- Tự nhiên.
 - Ấm áp.
-- Hài hước nhẹ.
-- Không giả tạo.
+- Biết pha chút hài hước.
 - Không giáo điều.
+- Không lặp lại câu trả lời.
 - Không tự giới thiệu.
-- Không nói "Tôi là AI".
-- Không nói "Tôi có thể giúp gì".
+- Không nói mình là AI.
 
-Thông tin người dùng
+Thông tin người dùng:
 
-Mood:
-${mem.mood || "Chưa có"}
+Mood: ${mem.mood || "Chưa có"}
 
-XP:
-${mem.xp || 0}
+XP: ${mem.xp || 0}
 
-Streak:
-${mem.streak || 0}
+Streak: ${mem.streak || 0}
 
 Journal:
-${mem.lastJournal || "Chưa có"}
+${mem.lastJournal || "Không có"}
 
 Achievement:
-${mem.lastAchievement || "Chưa có"}
+${mem.lastAchievement || "Không có"}
 
 Sự kiện:
 ${type}
 
-Hãy luôn nhớ cuộc trò chuyện trước.
-
-Không reset cuộc hội thoại.
-
-Không lặp lại câu vừa nói.
-
-Trả lời chi tiết thân thiện và GENZ.
+Hãy nhớ toàn bộ cuộc trò chuyện trước đó.
 `;
 
-    const reply =
-      await askGemini(
-        [
-          {
-            role: "system",
-            text: systemPrompt,
-          },
+    const result = await askGemini(
+      [
+        {
+          role: "system",
+          text: systemPrompt,
+        },
+        ...history,
+        ...(message
+          ? [
+              {
+                role: "user",
+                text: message,
+              },
+            ]
+          : []),
+      ],
+      context
+    );
 
-          ...history,
-
-          ...(message
-            ? [
-                {
-                  role: "user",
-                  text: message,
-                },
-              ]
-            : []),
-        ],
-        context
-      );
-
+    // askGemini giờ trả object
     let text =
-      reply
-        ?.replace(/\*/g, "")
-        ?.replace(/\n/g, " ")
-        ?.trim();
+      typeof result === "string"
+        ? result
+        : result.reply;
+
+    text = (text || "")
+      .replace(/\*/g, "")
+      .replace(/\n/g, " ")
+      .trim();
 
     if (!text) {
-      return randomFallback(
-        type
-      );
+      return randomFallback(type);
     }
 
+    // Chống lặp
+    const now = Date.now();
+
     if (
-      text.toLowerCase() ===
-      lastOutput.toLowerCase()
+      text.toLowerCase() === lastOutput.toLowerCase() &&
+      now - lastReplyTime < 60000
     ) {
-      return randomFallback(
-        type
-      );
+      text = randomFallback(type);
     }
 
     lastOutput = text;
+    lastReplyTime = now;
 
-    addChat(
-      "assistant",
-      text
-    );
+    // Lưu lịch sử
+    addChat("assistant", text);
 
-    updateMemory(
-      "lastMessage",
-      text
-    );
+    updateMemory("lastMessage", text);
 
-    return text;
+    // Nếu API trả về ký ức mới
+    if (
+      result &&
+      Array.isArray(result.remember)
+    ) {
+      updateMemory(
+        "remember",
+        result.remember
+      );
+    }
+
+    // Trả nguyên object để RobotChatBox vẫn dùng được emotion, emoji...
+    return {
+      reply: text,
+      emotion: result?.emotion || "calm",
+      emoji: result?.emoji || "🌱",
+      priority: result?.priority ?? 0.5,
+      shouldSpeak: result?.shouldSpeak ?? true,
+      followUp: result?.followUp ?? 0,
+      action: result?.action || "none",
+    };
   } catch (err) {
-    console.error(
-      "AI Brain:",
-      err
-    );
+    console.error("AI Brain:", err);
 
-    return randomFallback(
-      type
-    );
+    return {
+      reply: randomFallback(type),
+      emotion: "calm",
+      emoji: "🌱",
+      priority: 0.3,
+      shouldSpeak: true,
+      followUp: 0,
+      action: "none",
+    };
   }
 }
