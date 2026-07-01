@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import FriendCard from "@/components/friends/FriendCard";
 import { auth } from "@/app/lib/firebase";
+import { onAuthStateChanged } from "firebase/auth";
+
 import {
   listenUsers,
   listenFriends,
@@ -14,16 +16,29 @@ export default function FriendsPage() {
   const [users, setUsers] = useState([]);
   const [friends, setFriends] = useState([]);
   const [suggestions, setSuggestions] = useState([]);
+
+  const [currentUser, setCurrentUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
   const [loading, setLoading] = useState(true);
 
-  const currentUser = auth.currentUser;
+  // ======================
+  // AUTH FIX (QUAN TRỌNG NHẤT)
+  // ======================
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (user) => {
+      setCurrentUser(user);
+      setAuthLoading(false);
+    });
+
+    return () => unsub();
+  }, []);
 
   // ======================
   // LOAD USERS
   // ======================
   useEffect(() => {
     const unsub = listenUsers((list) => {
-      setUsers(list);
+      setUsers(list || []);
     });
 
     return () => unsub();
@@ -33,26 +48,34 @@ export default function FriendsPage() {
   // LOAD FRIENDS
   // ======================
   useEffect(() => {
-    if (!currentUser) return;
+    if (!currentUser?.uid) return;
 
     const unsub = listenFriends(currentUser.uid, (list) => {
-      setFriends(list);
+      setFriends(list || []);
     });
 
     return () => unsub();
-  }, [currentUser]);
+  }, [currentUser?.uid]);
 
   // ======================
   // LOAD SUGGESTIONS
   // ======================
   useEffect(() => {
-    if (!currentUser) return;
+    if (!currentUser?.uid) return;
+
+    let mounted = true;
 
     getSuggestions(currentUser.uid).then((data) => {
-      setSuggestions(data);
+      if (!mounted) return;
+
+      setSuggestions(data || []);
       setLoading(false);
     });
-  }, [currentUser]);
+
+    return () => {
+      mounted = false;
+    };
+  }, [currentUser?.uid]);
 
   // ======================
   // SEARCH FILTER
@@ -60,8 +83,9 @@ export default function FriendsPage() {
   const filteredUsers = useMemo(() => {
     const key = search.toLowerCase();
 
+    if (!currentUser?.uid) return [];
+
     return users.filter((u) => {
-      if (!currentUser) return false;
       if (u.uid === currentUser.uid) return false;
 
       return (
@@ -69,12 +93,28 @@ export default function FriendsPage() {
         u.username?.toLowerCase().includes(key)
       );
     });
-  }, [users, search, currentUser]);
+  }, [users, search, currentUser?.uid]);
 
   // ======================
-  // LOADING / AUTH GUARD
+  // LOADING STATES (FIX VERCEL STUCK)
   // ======================
-  if (!currentUser || loading) {
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950">
+        <p className="text-gray-500">Đang xác thực...</p>
+      </div>
+    );
+  }
+
+  if (!currentUser) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950">
+        <p className="text-gray-500">Bạn chưa đăng nhập</p>
+      </div>
+    );
+  }
+
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950">
         <p className="text-gray-500">Đang tải dữ liệu...</p>
@@ -82,6 +122,9 @@ export default function FriendsPage() {
     );
   }
 
+  // ======================
+  // UI
+  // ======================
   return (
     <main className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors">
 
@@ -148,7 +191,7 @@ export default function FriendsPage() {
           </div>
         </section>
 
-        {/* SEARCH RESULT */}
+        {/* SEARCH */}
         {search && (
           <section>
             <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-5">

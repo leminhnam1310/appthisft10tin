@@ -37,16 +37,18 @@ export default function Sidebar() {
 
   const menuRef = useRef(null);
 
-  // auth listener
+  const uid = user?.uid || null;
+
+  /* ================= AUTH ================= */
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
+      setUser(currentUser || null);
     });
 
     return () => unsubscribe();
   }, []);
 
-  // close dropdown click outside
+  /* ================= CLOSE OUTSIDE ================= */
   useEffect(() => {
     const handler = (e) => {
       if (menuRef.current && !menuRef.current.contains(e.target)) {
@@ -58,7 +60,6 @@ export default function Sidebar() {
     return () => document.removeEventListener("click", handler);
   }, []);
 
-  // active class helper
   const isActive = (path) => pathname === path;
 
   const linkClass = (active) =>
@@ -112,7 +113,7 @@ export default function Sidebar() {
             <PenSquare size={18} /> Bài viết
           </Link>
 
-          <Link href="/moods" className={linkClass(isActive("/mood"))}>
+          <Link href="/moods" className={linkClass(isActive("/moods"))}>
             <Heart size={18} /> Mood
           </Link>
 
@@ -138,25 +139,58 @@ export default function Sidebar() {
                 shadow-xl
                 overflow-hidden
               ">
-                <Link href="/statistics" className="flex items-center gap-3 px-4 py-3 hover:bg-slate-100 dark:hover:bg-white/10">
+
+                {/* PROFILE (FIX SAFE) */}
+                {uid && (
+                  <Link
+                    href={`/profile/${uid}`}
+                    onClick={() => setOpenMenu(false)}
+                    className="flex items-center gap-3 px-4 py-3 hover:bg-slate-100 dark:hover:bg-white/10"
+                  >
+                    👤 Hồ sơ của tôi
+                  </Link>
+                )}
+
+                <Link
+                  href="/statistics"
+                  onClick={() => setOpenMenu(false)}
+                  className="flex items-center gap-3 px-4 py-3 hover:bg-slate-100 dark:hover:bg-white/10"
+                >
                   <BarChart3 size={18} /> Thống kê
                 </Link>
 
-                <Link href="/friends" className="flex items-center gap-3 px-4 py-3 hover:bg-slate-100 dark:hover:bg-white/10">
+                <Link
+                  href="/friends"
+                  onClick={() => setOpenMenu(false)}
+                  className="flex items-center gap-3 px-4 py-3 hover:bg-slate-100 dark:hover:bg-white/10"
+                >
                   <Users size={18} /> Bạn bè
                 </Link>
 
-                <Link href="/community" className="flex items-center gap-3 px-4 py-3 hover:bg-slate-100 dark:hover:bg-white/10">
+                <Link
+                  href="/community"
+                  onClick={() => setOpenMenu(false)}
+                  className="flex items-center gap-3 px-4 py-3 hover:bg-slate-100 dark:hover:bg-white/10"
+                >
                   <Globe size={18} /> Cộng đồng
                 </Link>
 
-                <Link href="/achievements" className="flex items-center gap-3 px-4 py-3 hover:bg-slate-100 dark:hover:bg-white/10">
+                <Link
+                  href="/achievements"
+                  onClick={() => setOpenMenu(false)}
+                  className="flex items-center gap-3 px-4 py-3 hover:bg-slate-100 dark:hover:bg-white/10"
+                >
                   🏆 Thành tựu
                 </Link>
 
-                <Link href="/settings" className="flex items-center gap-3 px-4 py-3 hover:bg-slate-100 dark:hover:bg-white/10">
+                <Link
+                  href="/settings"
+                  onClick={() => setOpenMenu(false)}
+                  className="flex items-center gap-3 px-4 py-3 hover:bg-slate-100 dark:hover:bg-white/10"
+                >
                   <Settings size={18} /> Cài đặt
                 </Link>
+
               </div>
             )}
           </div>
@@ -169,8 +203,7 @@ export default function Sidebar() {
                 <button
                   onClick={async () => {
                     try {
-                      const u = await loginWithGoogle();
-                      setUser(u);
+                      await loginWithGoogle();
                     } catch (err) {
                       console.error(err);
                     }
@@ -190,8 +223,11 @@ export default function Sidebar() {
 
                 <button
                   onClick={async () => {
-                    const u = await loginAsGuest();
-                    setUser(u);
+                    try {
+                      await loginAsGuest();
+                    } catch (err) {
+                      console.error(err);
+                    }
                   }}
                   className="
                     px-4 py-2
@@ -214,6 +250,7 @@ export default function Sidebar() {
                     try {
                       await logout();
                       setUser(null);
+                      setOpenMenu(false);
                     } catch (err) {
                       console.error(err);
                     }

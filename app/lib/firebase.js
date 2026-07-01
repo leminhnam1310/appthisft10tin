@@ -1,7 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
-
+import { getDatabase } from "firebase/database";
 const firebaseConfig = {
   apiKey: "AIzaSyCYHreWf1A5XluVBluG_8cf6XWfcT4VuVk",
   authDomain: "mnam-4d31a.firebaseapp.com",
@@ -20,7 +20,7 @@ export const auth = getAuth(app);
 
 // FIRESTORE (QUAN TRỌNG)
 export const db = getFirestore(app);
-
+export const rtdb = getDatabase(app);
 // STORAGE (nếu cần sau)
 // export const storage = getStorage(app);
 
