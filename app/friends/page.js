@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import FriendCard from "@/components/FriendCard";
+import FriendCard from "@/components/friends/FriendCard";
 import { auth } from "@/app/lib/firebase";
 import {
   listenUsers,
@@ -14,6 +14,7 @@ export default function FriendsPage() {
   const [users, setUsers] = useState([]);
   const [friends, setFriends] = useState([]);
   const [suggestions, setSuggestions] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   const currentUser = auth.currentUser;
 
@@ -47,7 +48,10 @@ export default function FriendsPage() {
   useEffect(() => {
     if (!currentUser) return;
 
-    getSuggestions(currentUser.uid).then(setSuggestions);
+    getSuggestions(currentUser.uid).then((data) => {
+      setSuggestions(data);
+      setLoading(false);
+    });
   }, [currentUser]);
 
   // ======================
@@ -66,6 +70,17 @@ export default function FriendsPage() {
       );
     });
   }, [users, search, currentUser]);
+
+  // ======================
+  // LOADING / AUTH GUARD
+  // ======================
+  if (!currentUser || loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950">
+        <p className="text-gray-500">Đang tải dữ liệu...</p>
+      </div>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors">
@@ -103,7 +118,11 @@ export default function FriendsPage() {
 
           <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
             {suggestions.map((user) => (
-              <FriendCard key={user.uid} user={user} />
+              <FriendCard
+                key={user.uid}
+                user={user}
+                currentUser={currentUser}
+              />
             ))}
           </div>
         </section>
@@ -119,7 +138,11 @@ export default function FriendsPage() {
               <p className="text-slate-500">Chưa có bạn bè</p>
             ) : (
               friends.map((user) => (
-                <FriendCard key={user.uid} user={user} />
+                <FriendCard
+                  key={user.uid}
+                  user={user}
+                  currentUser={currentUser}
+                />
               ))
             )}
           </div>
@@ -134,7 +157,11 @@ export default function FriendsPage() {
 
             <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
               {filteredUsers.map((user) => (
-                <FriendCard key={user.uid} user={user} />
+                <FriendCard
+                  key={user.uid}
+                  user={user}
+                  currentUser={currentUser}
+                />
               ))}
             </div>
           </section>
