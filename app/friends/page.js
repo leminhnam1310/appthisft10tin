@@ -1,29 +1,40 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import FriendCard from "@/components/friends/FriendCard";
 import { auth } from "@/app/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 
 import {
-  listenUsers,
   listenFriends,
   getSuggestions,
+  searchUsers,
 } from "@/app/lib/friends";
+
+/* =========================
+   SAFE USER FILTER (IMPORTANT)
+========================= */
+const isValidUser = (u) => {
+  if (!u) return false;
+  if (!u.uid) return false;
+  if (!u.email) return false;
+  if (u.displayName === "Unknown") return false;
+  if (u.displayName === "Guest") return false;
+  return true;
+};
 
 export default function FriendsPage() {
   const [search, setSearch] = useState("");
-  const [users, setUsers] = useState([]);
+
   const [friends, setFriends] = useState([]);
   const [suggestions, setSuggestions] = useState([]);
+  const [searchResults, setSearchResults] = useState([]);
 
   const [currentUser, setCurrentUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [loading, setLoading] = useState(true);
 
-  // ======================
-  // AUTH FIX (QUAN TRỌNG NHẤT)
-  // ======================
+  // AUTH
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user);
@@ -33,33 +44,18 @@ export default function FriendsPage() {
     return () => unsub();
   }, []);
 
-  // ======================
-  // LOAD USERS
-  // ======================
-  useEffect(() => {
-    const unsub = listenUsers((list) => {
-      setUsers(list || []);
-    });
-
-    return () => unsub();
-  }, []);
-
-  // ======================
-  // LOAD FRIENDS
-  // ======================
+  // FRIENDS
   useEffect(() => {
     if (!currentUser?.uid) return;
 
     const unsub = listenFriends(currentUser.uid, (list) => {
-      setFriends(list || []);
+      setFriends((list || []).filter(isValidUser));
     });
 
     return () => unsub();
   }, [currentUser?.uid]);
 
-  // ======================
-  // LOAD SUGGESTIONS
-  // ======================
+  // SUGGESTIONS
   useEffect(() => {
     if (!currentUser?.uid) return;
 
@@ -68,7 +64,7 @@ export default function FriendsPage() {
     getSuggestions(currentUser.uid).then((data) => {
       if (!mounted) return;
 
-      setSuggestions(data || []);
+      setSuggestions((data || []).filter(isValidUser));
       setLoading(false);
     });
 
@@ -77,87 +73,96 @@ export default function FriendsPage() {
     };
   }, [currentUser?.uid]);
 
-  // ======================
-  // SEARCH FILTER
-  // ======================
-  const filteredUsers = useMemo(() => {
-    const key = search.toLowerCase();
+  // SEARCH (FIXED)
+  useEffect(() => {
+    if (!search.trim()) {
+      setSearchResults([]);
+      return;
+    }
 
-    if (!currentUser?.uid) return [];
+    const timer = setTimeout(async () => {
+      try {
+        const res = await searchUsers(search, currentUser?.uid);
 
-    return users.filter((u) => {
-      if (u.uid === currentUser.uid) return false;
+        setSearchResults(
+          (res || []).filter(isValidUser)
+        );
+      } catch (err) {
+        console.log(err);
+      }
+    }, 300);
 
-      return (
-        u.displayName?.toLowerCase().includes(key) ||
-        u.username?.toLowerCase().includes(key)
-      );
-    });
-  }, [users, search, currentUser?.uid]);
+    return () => clearTimeout(timer);
+  }, [search, currentUser?.uid]);
 
-  // ======================
-  // LOADING STATES (FIX VERCEL STUCK)
-  // ======================
+  // LOADING
   if (authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950">
-        <p className="text-gray-500">Đang xác thực...</p>
+      <div className="min-h-screen flex items-center justify-center bg-slate-100 dark:bg-slate-950">
+        Đang xác thực...
       </div>
     );
   }
 
   if (!currentUser) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950">
-        <p className="text-gray-500">Bạn chưa đăng nhập</p>
+      <div className="min-h-screen flex items-center justify-center bg-slate-100 dark:bg-slate-950">
+        Bạn chưa đăng nhập
       </div>
     );
   }
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950">
-        <p className="text-gray-500">Đang tải dữ liệu...</p>
+      <div className="min-h-screen flex items-center justify-center bg-slate-100 dark:bg-slate-950">
+        Đang tải dữ liệu...
       </div>
     );
   }
 
-  // ======================
   // UI
-  // ======================
   return (
-    <main className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors">
+    <main className="min-h-screen bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
 
-      {/* HEADER */}
-      <div className="sticky top-0 z-30 backdrop-blur-xl bg-white/70 dark:bg-slate-950/70 border-b border-slate-200 dark:border-slate-800">
+      <div className="sticky top-0 z-30 backdrop-blur border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-950/70">
         <div className="max-w-7xl mx-auto p-6">
 
-          <h1 className="text-4xl font-bold text-slate-900 dark:text-white">
-            👥 Bạn bè
-          </h1>
+          <h1 className="text-3xl font-bold">👥 Bạn bè</h1>
 
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="🔍 Tìm bạn bè..."
-            className="
-              mt-5 w-full p-4 rounded-2xl
+            className="mt-5 w-full p-4 rounded-2xl
               bg-white dark:bg-slate-900
-              border border-slate-200 dark:border-slate-700
-              text-slate-900 dark:text-white
-              outline-none focus:ring-2 focus:ring-violet-500
-            "
+              border border-slate-200 dark:border-slate-800
+              outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto p-6 space-y-10">
+      <div className="max-w-7xl mx-auto p-6 space-y-12">
+
+        {/* SEARCH */}
+        {search.trim() && (
+          <section>
+            <h2 className="text-xl font-semibold mb-4">🔍 Kết quả tìm kiếm</h2>
+
+            <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
+              {searchResults.map((user) => (
+                <FriendCard
+                  key={user.uid}
+                  user={user}
+                  currentUser={currentUser}
+                />
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* SUGGESTIONS */}
         <section>
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-5">
-            ⭐ Gợi ý kết bạn
-          </h2>
+          <h2 className="text-xl font-semibold mb-4">⭐ Gợi ý kết bạn</h2>
 
           <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
             {suggestions.map((user) => (
@@ -172,43 +177,18 @@ export default function FriendsPage() {
 
         {/* FRIENDS */}
         <section>
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-5">
-            ❤️ Bạn bè
-          </h2>
+          <h2 className="text-xl font-semibold mb-4">❤️ Bạn bè</h2>
 
           <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
-            {friends.length === 0 ? (
-              <p className="text-slate-500">Chưa có bạn bè</p>
-            ) : (
-              friends.map((user) => (
-                <FriendCard
-                  key={user.uid}
-                  user={user}
-                  currentUser={currentUser}
-                />
-              ))
-            )}
+            {friends.map((user) => (
+              <FriendCard
+                key={user.uid}
+                user={user}
+                currentUser={currentUser}
+              />
+            ))}
           </div>
         </section>
-
-        {/* SEARCH */}
-        {search && (
-          <section>
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-5">
-              🔍 Kết quả tìm kiếm
-            </h2>
-
-            <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
-              {filteredUsers.map((user) => (
-                <FriendCard
-                  key={user.uid}
-                  user={user}
-                  currentUser={currentUser}
-                />
-              ))}
-            </div>
-          </section>
-        )}
 
       </div>
     </main>
