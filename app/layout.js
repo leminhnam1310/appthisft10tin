@@ -4,11 +4,10 @@ import { useEffect, useState } from "react";
 import localFont from "next/font/local";
 import "./globals.css";
 
-import BackgroundEffects from "@/components/BackgroundEffects";
-import BearScene from "@/components/BearScene";
 import ThemeLoader from "@/components/ThemeLoader";
 import FloatingRobot from "@/components/FloatingRobot";
 import IntroScreen from "@/components/IntroScreen";
+import SystemEffects from "@/components/SystemEffects";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -23,25 +22,46 @@ const geistMono = localFont({
 });
 
 export default function RootLayout({ children }) {
-  const [introDone, setIntroDone] = useState(false);
-  const [mounted, setMounted] = useState(false);
+
+  const [introDone, setIntroDone] =
+    useState(false);
+
+  const [mounted, setMounted] =
+    useState(false);
 
   useEffect(() => {
+
     setMounted(true);
 
-    const saved = localStorage.getItem("intro_done");
+    const saved =
+      localStorage.getItem(
+        "intro_done"
+      );
+
     if (saved === "true") {
       setIntroDone(true);
     }
+
   }, []);
 
-  const finishIntro = () => {
-    localStorage.setItem("intro_done", "true");
+  function finishIntro() {
+
+    localStorage.setItem(
+      "intro_done",
+      "true"
+    );
+
     setIntroDone(true);
-  };
+
+  }
 
   return (
-    <html lang="vi" suppressHydrationWarning>
+
+    <html
+      lang="vi"
+      suppressHydrationWarning
+    >
+
       <body
         id="app-body"
         className={`
@@ -50,36 +70,71 @@ export default function RootLayout({ children }) {
           antialiased
           relative
           min-h-screen
-          bg-slate-100 dark:bg-slate-950
-          text-slate-900 dark:text-white
+          bg-slate-100
+          dark:bg-slate-950
+          text-slate-900
+          dark:text-white
           overflow-x-hidden
         `}
       >
-        {/* ALWAYS RENDER SYSTEM */}
-        <ThemeLoader />
-        <BackgroundEffects />
-        <BearScene />
 
-        {/* INTRO OVERLAY (SAFE) */}
+        {/* Theme */}
+
+        <ThemeLoader />
+
+        {/* Background Effects */}
+        <SystemEffects />
+
+        {/* Intro */}
+
         {!introDone && mounted && (
-          <div className="fixed inset-0 z-[999999] bg-black/80 flex items-center justify-center">
-            <IntroScreen onFinish={finishIntro} />
+
+          <div
+            className="
+              fixed
+              inset-0
+              z-[999999]
+              bg-black/80
+              flex
+              items-center
+              justify-center
+            "
+          >
+
+            <IntroScreen
+              onFinish={finishIntro}
+            />
+
           </div>
+
         )}
 
-        {/* MAIN APP (KHÔNG BAO GIỜ ẨN HOÀN TOÀN) */}
+        {/* Main */}
+
         <div
           className={`
-            transition-all duration-500
-            ${!introDone ? "opacity-30 blur-sm pointer-events-none" : "opacity-100"}
+            transition-all
+            duration-500
+            ${
+              !introDone
+                ? "opacity-30 blur-sm pointer-events-none"
+                : "opacity-100"
+            }
           `}
         >
+
           {children}
+
         </div>
 
-        {/* SYSTEM ALWAYS ON */}
+        {/* Robot */}
+
         <FloatingRobot />
+
       </body>
+
     </html>
+
   );
+
 }
